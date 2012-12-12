@@ -16,6 +16,7 @@
 #define DEBUG_TYPE "asan"
 
 #include "BlackList.h"
+#include "llvm/DIBuilder.h"
 #include "llvm/Function.h"
 #include "llvm/IRBuilder.h"
 #include "llvm/InlineAsm.h"
@@ -39,6 +40,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
 #include <string>
@@ -1014,6 +1016,7 @@ bool AddressSanitizer::poisonStackInFunction(Function &F) {
   SmallVector<AllocaInst*, 16> AllocaVec;
   SmallVector<Instruction*, 8> RetVec;
   uint64_t TotalSize = 0;
+  DIBuilder DIB(*F.getParent());
 
   // Filter out Alloca instructions we want (and can) handle.
   // Collect Ret instructions.
@@ -1078,10 +1081,11 @@ bool AddressSanitizer::poisonStackInFunction(Function &F) {
                      << Name.size() << " " << Name << " ";
     uint64_t AlignedSize = getAlignedAllocaSize(AI);
     assert((AlignedSize % RedzoneSize) == 0);
-    AI->replaceAllUsesWith(
-        IRB.CreateIntToPtr(
+    Value *NewAllocaPtr = IRB.CreateIntToPtr(
             IRB.CreateAdd(LocalStackBase, ConstantInt::get(IntptrTy, Pos)),
-            AI->getType()));
+            AI->getType());
+    replaceDbgDeclareForAlloca(AI, NewAllocaPtr, DIB);
+    AI->replaceAllUsesWith(NewAllocaPtr);
     Pos += AlignedSize + RedzoneSize;
   }
   assert(Pos == LocalStackSize);

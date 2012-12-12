@@ -634,6 +634,7 @@ namespace llvm {
       DIFile F = getFieldAs<DIFile>(3); 
       return F.getCompileUnit();
     }
+    DIFile getFile() const              { return getFieldAs<DIFile>(3); }
     unsigned getLineNumber() const      { 
       return (getUnsignedField(4) << 8) >> 8; 
     }
